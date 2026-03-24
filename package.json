@@ -1,0 +1,44 @@
+{
+  "name": "system-audio-transcriber",
+  "version": "1.0.0",
+  "description": "Electron app that transcribes system audio and types it into the active input",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "build": "electron-forge make",
+    "build:win": "electron-forge make --platform=win32"
+  },
+  "keywords": [
+    "electron",
+    "transcription",
+    "dictation",
+    "windows"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "@electron-forge/cli": "^7.5.0",
+    "@electron-forge/maker-zip": "^7.5.0"
+  },
+  "config": {
+    "forge": {
+      "packagerConfig": {
+        "name": "SystemAudioTranscriber"
+      },
+      "makers": [
+        {
+          "name": "@electron-forge/maker-zip",
+          "platforms": [
+            "win32"
+          ]
+        }
+      ]
+    }
+  }
+}

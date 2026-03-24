@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Env files
+.env.*.local
+
+# Build and package output
+dist/
+out/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+
+# Electron Forge / packager artifacts
+*.tmp
+*.temp
+*.log
+config.bat
