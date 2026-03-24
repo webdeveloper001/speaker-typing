@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>System Audio Transcriber</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        font-family: Segoe UI, Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      .card {
+        max-width: 640px;
+        margin: 0 auto;
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 20px;
+      }
+      h1 { margin: 0 0 12px; font-size: 22px; }
+      p { line-height: 1.5; color: #cbd5e1; }
+      code {
+        background: #1f2937;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .status {
+        margin: 14px 0;
+        padding: 10px;
+        border-radius: 8px;
+        background: #0b1220;
+        border: 1px solid #233047;
+      }
+      .buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      button {
+        border: none;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.start { background: #22c55e; color: #06210f; }
+      button.stop { background: #ef4444; color: #fff; }
+      small { color: #94a3b8; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>System Audio Transcriber</h1>
+      <p>
+        Global shortcuts: <code>Alt+S</code> to start and <code>Alt+E</code> to stop.
+      </p>
+      <p>
+        Keep your cursor in any target input box. Final transcriptions are typed there automatically.
+      </p>
+      <div class="status" id="status">Status: idle</div>
+      <div class="buttons">
+        <button class="start" id="startBtn">Start</button>
+        <button class="stop" id="stopBtn">Stop</button>
+        <button id="testTypeBtn">Test Typing</button>
+        <button id="diagBtn">Diagnostics</button>
+      </div>
+      <p><small>The app continues to run in the tray when the window is closed.</small></p>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      document.getElementById('startBtn').addEventListener('click', () => window.appApi.start());
+      document.getElementById('stopBtn').addEventListener('click', () => window.appApi.stop());
+      document.getElementById('testTypeBtn').addEventListener('click', async () => {
+        await window.appApi.testTyping();
+      });
+      document.getElementById('diagBtn').addEventListener('click', async () => {
+        const d = await window.appApi.getDiagnostics();
+        statusEl.textContent = `Status: diag chunks=${d.audioChunksSent}, bytes=${d.audioBytesSent}, dgMsgs=${d.dgMessages}, finals=${d.dgFinals}, ws=${d.deepgramState}`;
+      });
+
+      let mediaStream;
+      let mediaRecorder;
+
+      async function startCapture() {
+        try {
+          if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            return;
+          }
+
+          mediaStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true,
+            preferCurrentTab: false
+          });
+
+          const audioTracks = mediaStream.getAudioTracks();
+          if (!audioTracks || audioTracks.length === 0) {
+            throw new Error('No loopback audio track received.');
+          }
+
+          const audioOnlyStream = new MediaStream([audioTracks[0]]);
+          mediaRecorder = new MediaRecorder(audioOnlyStream, {
+            mimeType: 'audio/webm;codecs=opus',
+            audioBitsPerSecond: 64000
+          });
+
+          mediaRecorder.ondataavailable = async (event) => {
+            if (!event.data || event.data.size === 0) return;
+            const ab = await event.data.arrayBuffer();
+            window.appApi.sendAudioChunk(ab);
+          };
+
+          mediaRecorder.onerror = (event) => {
+            window.appApi.sendCaptureError(event?.error?.message || 'MediaRecorder error');
+          };
+
+          mediaRecorder.onstart = () => window.appApi.sendCaptureState('started');
+          mediaRecorder.onstop = () => window.appApi.sendCaptureState('stopped');
+
+          mediaRecorder.start(250);
+        } catch (error) {
+          window.appApi.sendCaptureError(error?.message || String(error));
+        }
+      }
+
+      function stopCapture() {
+        try {
+          if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+          }
+          mediaRecorder = null;
+
+          if (mediaStream) {
+            for (const t of mediaStream.getTracks()) {
+              t.stop();
+            }
+          }
+          mediaStream = null;
+        } catch (error) {
+          window.appApi.sendCaptureError(error?.message || String(error));
+        }
+      }
+
+      window.appApi.onCaptureStart(() => {
+        startCapture();
+      });
+
+      window.appApi.onCaptureStop(() => {
+        stopCapture();
+      });
+
+      window.appApi.onStatus((s) => {
+        statusEl.textContent = `Status: ${s}`;
+      });
+    </script>
+  </body>
+</html>
